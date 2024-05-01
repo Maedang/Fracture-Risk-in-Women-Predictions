@@ -1,0 +1,894 @@
+---
+title: "Project2"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+#Data Preprocessing 
+```{r dataset}
+#Dataset
+library(aplore3)
+mydata<-glow_bonemed
+head(mydata)
+names(mydata)
+?glow_bonemed
+```
+
+####About the dataset: 
+
++ R package aplore3, glow_bonemed data set.  Assessing risk factors and predicting if a woman with osteoperosis will have a bone fracture within the 5 years after joining the study. 
+ 
++ There are 500 observations and 18 variables. 
+
+####About the variables 
+
++ Response variable: fracture (Yes/No). Among 500 observations, there are 125 observations in this dataset has at least a bone fracture within the 5 years after joining the study, and 375 did not have any bone fracture within the same time frame. 
+
++ 3 Id variables that could be dropped from the dataset. They are not predictive variables
+
++ 5 numerous predictors: age, weight, height, bmi, and fracscore. While fracscore is the fracture risk score ( composite risk score),  the other four variables are the measurement upon enrollment.  
+
++ 9 categorical predictors: Raterisk is a self reported risk of fracture and has 3 levels : 1 - less than others of the same age, 2- same as others of the same age or 3 -greater than people of the same age. The other categorical variables are binary (Yes/No). 
+
+
+#Variables 
+```{r response variable}
+library(ISLR)
+mydata$fracture.num<-ifelse(mydata$fracture=="Yes",1,0)
+#Sanity check
+table(mydata$fracture.num,mydata$fracture)
+```
+There are 375 having no bone fracture and 125 to have a bone fracture within the 5 years of the study. 
+
+
+```{r predictorsummary}
+#Checking data types
+library(naniar)
+str(mydata)
+vis_miss(mydata)
+dim(mydata)
+
+#Factorize the categorized variables 
+library(dplyr)
+mydata <- mydata%>% mutate_if(is.character, factor)
+```
+
+There is no missing values. 
+
+# EDA (Explainatory Data Analysis)
+```{r Loess curves for numeric vavriables}
+#Lowess curves for the numrical predictors 
+library(ggplot2)
+library(gridExtra)
+#Age
+plot1 <- ggplot(mydata,(aes(x=age,y=fracture.num)))+geom_point()+geom_smooth(method="loess",span=0.4)
+#Weight
+plot2 <-ggplot(mydata,(aes(x=weight,y=fracture.num)))+geom_point()+geom_smooth(method="loess",span=0.4)
+#Height
+plot3 <-ggplot(mydata,(aes(x=height,y=fracture.num)))+geom_point()+geom_smooth(method="loess",span=0.4)
+#BMI
+plot4 <-ggplot(mydata,(aes(x=bmi,y=fracture.num)))+geom_point()+geom_smooth(method="loess",span=0.4)
+#fracscore
+plot5 <-ggplot(mydata,(aes(x=fracscore,y=fracture.num)))+geom_point()+geom_smooth(method="loess",span=0.4)
+
+grid.arrange(plot1, plot2, plot3, plot4, plot5, nrow = 2, ncol = 3)
+```
+According to the loess curves: 
+ 
++ There is a significant relationship between the age, height, and fracture score and the chances if the female patients would have at least a bone fracture within the first year of the study. 
+
++ There is not enough evidence to suggest there is a trend in the bmi and the weight. They may be not statistically significant in predicting whether the women would have the bone fracture within a year of the study. 
+
+
+
+```{r box plots for categorical variables}
+#Boxplot for the categorical predictors 
+library(dplyr)
+g1<-mydata %>% 
+  group_by(priorfrac,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g1
+
+plot1<-ggplot(g1[c(3,4),],aes(x=reorder(priorfrac,-perc),y=perc,colour=priorfrac))+
+  geom_bar(aes(fill=priorfrac),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("Priorfracture")
+
+
+g2<-mydata %>% 
+  group_by(premeno,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g2
+
+plot2 <-ggplot(g2[c(3,4),],aes(x=reorder(premeno,-perc),y=perc,colour=premeno))+
+  geom_bar(aes(fill=premeno),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("premeno")
+
+g3<-mydata %>% 
+  group_by(momfrac,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g3
+
+plot3<- ggplot(g3[c(3,4),],aes(x=reorder(momfrac,-perc),y=perc,colour=momfrac))+
+  geom_bar(aes(fill=momfrac),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("momfrac")
+
+g4<-mydata %>% 
+  group_by(smoke,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g4
+
+plot4 <- ggplot(g4[c(3,4),],aes(x=reorder(smoke,-perc),y=perc,colour=smoke))+
+  geom_bar(aes(fill=smoke),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("smoke")
+
+g5<-mydata %>% 
+  group_by(raterisk,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g5
+
+plot5<-ggplot(g5[c(4,5,6),],aes(x=reorder(raterisk,-perc),y=perc,colour=raterisk))+
+  geom_bar(aes(fill=raterisk),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("raterisk")
+
+library(gridExtra)
+grid.arrange(plot1, plot2, plot3, plot4, plot5, nrow = 2, ncol = 3)
+```
+
++ There is no significant different in the proportion of the having the bone fracture within the first year among the females who have menopause before 45 years and those who didn't. 
++ According to the visual tests, there is a significant difference in the proportion of having the bone fracture in the first year between the females who already have bone fracture and who didnt', and between the females whose their mothers had bone fractures and who did not have a family history of bone fracture. 
++ The fact if the women were vor current smokers also affect the probability of having a bone fracture within the first year. Women who rated themselves as having greater risks than their peers also have a larger proportion of having a bone fracture within the firs year than people was self rated as having less risks. 
+
+
+
+
+```{r box plots for categorical variables2}
+#More boxplots for the categorical predictors 
+# Armassist 
+g1<-mydata %>% 
+  group_by(armassist,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g1
+
+plot1 <- ggplot(g1[c(3,4),],aes(x=reorder(armassist,-perc),y=perc,colour=armassist))+
+  geom_bar(aes(fill=armassist),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("armassist")
+
+#bonemed
+g2<-mydata %>% 
+  group_by(bonemed,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g2
+
+plot2 <- ggplot(g2[c(3,4),],aes(x=reorder(bonemed,-perc),y=perc,colour=bonemed))+
+  geom_bar(aes(fill=bonemed),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("bonemed")
+
+#bonemed_fu
+g3<-mydata %>% 
+  group_by(bonemed_fu,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g3
+
+plot3 <- ggplot(g3[c(3,4),],aes(x=reorder(bonemed_fu,-perc),y=perc,colour=bonemed_fu))+
+  geom_bar(aes(fill=bonemed_fu),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("Bonemed_fu")
+
+#Bonetreat
+g4<-mydata %>% 
+  group_by(bonetreat,fracture) %>%
+  summarise(cnt=n()) %>%
+  mutate(perc=round(cnt/sum(cnt),4))%>%
+  arrange(desc(perc))
+g4
+
+plot4 <- ggplot(g4[c(3,4),],aes(x=reorder(bonetreat,-perc),y=perc,colour=bonetreat))+
+  geom_bar(aes(fill=bonetreat),show.legend=T,stat="identity")+
+  ylab("Proportion of Fracture ")+
+  xlab("bonetreat")
+
+
+grid.arrange(plot1, plot2, plot3, plot4, nrow = 2, ncol = 3)
+```
+
+
+```{r scatter plot matrix for the numeric variables}
+library(GGally)
+library(ggplot2)
+library(ISLR)
+library(GGally)
+# Select the relevant columns
+selected_vars <- mydata[, c( "age", "weight", "height", "bmi", "fracscore", "fracture")]
+
+# Create a scatterplot matrix with color by class
+ggpairs(selected_vars, mapping = aes(color = fracture))
+
+```
+
++ There is collinearity between the age and the fracscore as well as the weight and BMI.
+
++ While height has a bell shape distribution, height and bmi has right skewed distribution. Also, the age between women with osteoporosis that have a bone fracture within the first year of the study and those who dont also do not have a normal distribution --> normality assumption are not meet for the LDA model 
+
++ Also, the numerical predictors do not have the same covariance matrices --> constants variance matrix assumption is also not meet for the QDA model. We think a nonparametric model will be more appropriate for the dataset.  
+
+```{r removing the id variables}
+# Remove the first three columns (e.g., ID and another non-predictive variable)
+mydata <- mydata[, -c(1, 2, 3)]
+```
+
+```{r Correlation matrix - Checking for multicollinearity}
+library(corrplot)
+#Corrplot
+
+# Select only numeric columns from the data frame
+numeric_data <- select_if(mydata, is.numeric)
+
+# Compute the correlation matrix for numeric variables
+cor_matrix <- cor(numeric_data)
+
+# Customize corrplot (e.g., change color, method, etc.)
+# For more customization options, check the documentation: ?corrplot
+corrplot(cor_matrix, method = "color", tl.cex = 0.5,addCoef.col = "black")
+```
+
+
+This is another visualization to see the multicollinearity between the predictors, particularly between the age and the fracscore (cor = 0.87) and between the weight and the bmi (cor =0.94)
+
+
+#PCA - Princinpal component analysis 
+```{r PCA }
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+
+# Separate the diagnosis variable
+Fracture <- mydata$fracture
+# Remove the first two columns (e.g., ID and another non-predictive variable)
+
+# Filter only numerical columns from your dataset (assuming they are columns 3 onwards)
+numerical_data <- mydata %>% select_if(is.numeric)
+#Remove the frac.num which is the response variable 
+numerical_data <- numerical_data[, -c(6)]
+# Perform PCA
+pc.result <- prcomp(numerical_data, scale. = TRUE)
+
+
+
+```
+
+```{r scree plot}
+pc.result<-prcomp(mydata[,2:5,11],scale.=TRUE)
+
+#Eigen Vectors
+pc.result$rotation
+
+#Eigen Values
+eigenvals<-pc.result$sdev^2
+eigenvals
+
+#Scree plot
+par(mfrow=c(1,2))
+plot(eigenvals,type="l",main="Scree Plot",ylab="Eigen Values",xlab="PC #")
+plot(eigenvals/sum(eigenvals),type="l",main="Scree Plot",ylab="Prop. Var. Explained",xlab="PC #",ylim=c(0,1))
+cumulative.prop<-cumsum(eigenvals/sum(eigenvals))
+lines(cumulative.prop,lty=2)
+abline(v=2, col="red")
+abline(h=0.8, col="red")
+
+```
+
+According to the scree plot, the first 2 principals components would be needed to retain approximately 80% of the total variation in the data set.
+
+
+```{r scatter plot of PC1 and PC2}
+# Create a data frame with PC1 and PC2
+pca_df <- data.frame(PC1 = pc.result$x[, 1], PC2 = pc.result$x[, 2], Fracture = Fracture)
+
+# Create a scatter plot of PC1 vs. PC2 color-coded by Fracture
+ggplot(pca_df, aes(x = PC1, y = PC2, color = Fracture)) +
+  geom_point() +
+  labs(x = "PC1", y = "PC2", color = "Fracture") +
+  ggtitle("PCA Plot of PC1 vs. PC2")
+
+```
+We do not intend to use PCA to reduce the variables. There are only five numerical variables in our dataset. However, it helps us to visualize the decision boundaries with all the variables.Notably, there is no pattern in the scatter plot of the first two principal components of the dataset. This supports our decision earlier that LDA and QDA are not a good fit. 
+
+
+# Data Preprocessing
+```{r train and validate set }
+#Split the train and the validate set 
+library(caret)
+set.seed(1234)
+# Define the split ratio 
+split_ratio <- 0.8
+
+# Create a stratified random split
+splitIndex <- createDataPartition(y = mydata$fracture, p = split_ratio, list = FALSE)
+
+# Create the training set
+train <- mydata[splitIndex, ]
+
+# Create the validation set
+validate <- mydata[-splitIndex, ]
+
+```
+
+
+We randomly split the dataset as 80% of the data is the train dataset when the rest of the data is inlcuded in the validate set to evaluate the models later on. 
+
+# Objective 1 
+```{r Full model}
+#Fit the logistic regression model 
+full_model  <- glm(fracture ~.-fracture.num, data = train, family = "binomial")
+summary(full_model)
+
+# Load the caret package if not already loaded
+library(caret)
+
+# Assuming you have already fitted the logistic regression model and obtained predictions
+# Compute predicted probabilities on the validation data (if not already done)
+predictions <- predict(full_model, newdata = validate, type = "response")
+
+# Define a threshold for classification (typically 0.5, but you can adjust it)
+threshold <- 0.5
+
+# Create a binary vector of predicted classes based on the threshold
+full_model.preds<- factor(ifelse(predictions > threshold, "Yes", "No"))
+
+# Create the confusion matrix
+confusion_matrix <- confusionMatrix(data = full_model.preds, reference = validate$fracture)
+
+# Print the confusion matrix
+print(confusion_matrix)
+
+library(car)
+vif_values <- vif(full_model)
+print(vif_values)
+
+#LogLoss
+library(Metrics)
+predictions <- predict(full_model, newdata = validate, type = "response")
+log_loss <- logLoss(validate$fracture.num, predictions)
+log_loss
+
+#AUC
+library(pROC)
+roc_obj <- roc(validate$fracture.num, predictions)
+auc_value <- auc(validate$fracture.num, predictions)
+print(auc_value)
+
+```
+
+This losgistic model fitted with the train dataset and all of the varaibles that we have (except the id variables). We noticed that the vif of the weight and the bmi are over 10. the vif of the age and the fracscore is also high, over 4. Similarly are the bonemed, bonemed_fu and the bonetreat. These high vifs are expected as we already know the mulcollinearity between these variables based on the EDA. We will move foward with fitting a custom model with only seven variables: age, height, priorfrac, momfrac, raterisk, armassist, bonetreat. We will still fit the model with the train dataset and will check its performance using the validate dataset. We are using the AIC, logloss and the AUC metrics. 
+
+# Custom model : take away weight, bmi, fracscore, bonemed, bonemed_fu, premeno, smoke
+```{r Custom Model}
+#Fit the logistic regression model 
+custom_model <- glm(fracture ~ age + height  + priorfrac + momfrac + raterisk +armassist +bonetreat, data = train, family = "binomial")
+summary(custom_model)
+
+
+# Assuming you have already fitted the logistic regression model and obtained predictions
+# Compute predicted probabilities on the validation data (if not already done)
+predictions <- predict(custom_model, newdata = validate, type = "response")
+
+# Define a threshold for classification (typically 0.5, but you can adjust it)
+threshold <- 0.3
+
+# Create a binary vector of predicted classes based on the threshold
+custom_model.preds<- factor(ifelse(predictions > threshold, "Yes", "No"))
+
+# Create the confusion matrix
+confusion_matrix <- confusionMatrix(data = custom_model.preds, reference = validate$fracture)
+
+# Print the confusion matrix
+print(confusion_matrix)
+vif_values <- vif(custom_model)
+print(vif_values)
+
+#LogLoss
+library(Metrics)
+predictions <- predict(custom_model, newdata = validate, type = "response")
+log_loss <- logLoss(validate$fracture.num, predictions)
+log_loss
+
+#AUC
+roc_obj <- roc(validate$fracture.num, predictions)
+auc_value <- auc(validate$fracture.num, predictions)
+print(auc_value)
+```
+
+As we noticed that the AIC is little bit higher than the full model.The logloss and the AUC are also higher than then the full model. However, the p-values are change. Some of the variables that did not appear to be significant in the full model is now significant in this model, including age and height. Even though the results of this model are not as good as the full model, we decided to move forward with these predictors as they are more consistent with what we saw in the EDA. The difference is not much of a difference but we got rid of the multi-collinearity issues. We also conducted an anova test to see which model is better. 
+
+
+#Interpretation
+```{r Interpretaion of the custom model}
+summary(custom_model)
+
+(exp(coef(custom_model))-1)*100
+
+(exp(confint(custom_model))-1)*100
+```
+
++ Age: There is significant impact of the age in the odds of having a bone fracture for the women with osteoporosis (p-value = 0.024), holding other variables constant. For every year older, it is estimated that the odd increasing 3.56% holding other variable constant. 95% CI is (0.48%, 6.77%) 
+
++ Height: There is a significant difference in the probabilities of having a bone fracture within the first year of study in women with osteoporosis from different heights, holding other variable constant. It is estimated that for every centimeter increases, the odd of having a bon fracture within the first year decrease  about 4.26%, holding other variables constant. 95% CI(3.99%, 8.07%) 
+
++ Prior fracture: There is a significant difference in the probabilities of having a bone fracture within the first year of study in women with osteoporosis if they had it in the past, holding other variable constant. It is estimated that women with osteoporosis already experienced a bone fracture have a odd ratio 130% higher than those who didn't, holding other variable constant. 95% CI(34.2%, 295.7%) 
+
++ Momfrac: There is a significant difference in the probabilities of having a bone fracture within the first year of study in women with osteoporosis if their mom also had it, holding other variable constant. It is estimated that women with osteoporosis whose mothers also experienced a bone fracture have a odd ratio 116% higher than those who didn't, holding other variable constant. 95% CI(8%, 323%) 
+
++ Raterisk: There is no significant difference in the odd ratios of having a bone fracture within the first year of study among the women with osteoporosis that self-rated as greater risk or having the same risk as others of the same age, compared to those selfrated having less risk than of the same age, holding other constant fixed. 
+
++ Armassist:There is no significant difference in the odd ratios of having a bone fracture within the first year of study among the women with osteoporosis that need arm assistance compared to those who don't, holding other constant fixed.  
+
++ Bontreat: There is no significant difference in the odd ratios of having a bone fracture within the first year of study among the women with osteoporosis that received the bone medications compared to those who don't, olding other constant fixed. 
+
+
+#Feature Selection 
+```{r Stepwise}
+library(caret)
+fitControl<-trainControl(method="repeatedcv",number=5,repeats=1,classProbs=TRUE, summaryFunction=mnLogLoss)
+set.seed(1234)
+#note CV and error metric are not really used here, but logLoss is reported for the final model.
+Step.fit<-train(fracture ~ .- fracture.num,
+                    data=train,
+                    method="glmStepAIC",
+                    trControl=fitControl,
+                    metric="logLoss")
+coef(Step.fit$finalModel)
+
+
+```
+
+
+
+```{r GLmnet}
+set.seed(1234)
+#GLMNET
+glmnet.fit<-train(fracture~.-fracture.num,
+                    data=train,
+                    method="glmnet",
+                    trControl=fitControl,
+                    metric="logLoss")
+coef(glmnet.fit$finalModel,glmnet.fit$finalModel$lambdaOpt)
+
+```
+
+From the feature selection, these predictors are remained in the model: 
+
+
++ Stepwise : priorfrac, age, weight, bmi, momfrac, bonemed, bonemed_fu, bonetreat 
+
++ GLMnet: priorfrac, age, height, bmi, premeno, momfrac, armassist,smoke, raterisk, fracscore, bonemed_fu, bonemed_fu, bonetreat
+
+We will move forward with fit two more logistic regressin models with the predictors are selected from the feature selection. 
+
+```{r Fit the stepwise}
+#Fit the model based on the stepwise feature selection 
+#Fit the logistic regression model 
+step_model  <- glm(fracture ~ age + weight + bmi +  momfrac +  bonemed + bonemed_fu + bonetreat  , data = train, family = "binomial")
+summary(step_model)
+
+
+# Assuming you have already fitted the logistic regression model and obtained predictions
+# Compute predicted probabilities on the validation data (if not already done)
+predictions <- predict(step_model, newdata = validate, type = "response")
+
+# Define a threshold for classification (typically 0.5, but you can adjust it)
+threshold <- 0.5
+
+# Create a binary vector of predicted classes based on the threshold
+step_model.preds<- factor(ifelse(predictions > threshold, "Yes", "No"))
+
+# Create the confusion matrix
+confusion_matrix <- confusionMatrix(data = step_model.preds, reference = validate$fracture)
+
+# Print the confusion matrix
+print(confusion_matrix)
+vif(step_model) 
+
+#LogLoss
+library(Metrics)
+predictions <- predict(step_model, newdata = validate, type = "response")
+log_loss <- logLoss(validate$fracture.num, predictions)
+log_loss
+
+#AUC
+roc_obj <- roc(validate$fracture.num, predictions)
+auc_value <- auc(validate$fracture.num, predictions)
+print(auc_value)
+```
+
+```{r Fit the glmnet model}
+#Fit the model based on the glmnet feature selection 
+#Fit the logistic regression model 
+glmnet_model  <- glm(fracture ~ priorfrac + age + height + bmi +raterisk +fracscore + premeno + momfrac + armassist + smoke + bonemed_fu + bonemed_fu + bonetreat, data = train, family = "binomial")
+summary(glmnet_model)
+
+
+# Assuming you have already fitted the logistic regression model and obtained predictions
+# Compute predicted probabilities on the validation data (if not already done)
+predictions <- predict(glmnet_model, newdata = validate, type = "response")
+
+# Define a threshold for classification (typically 0.5, but you can adjust it)
+threshold <- 0.5
+
+# Create a binary vector of predicted classes based on the threshold
+glmnet_model.preds<- factor(ifelse(predictions > threshold, "Yes", "No"))
+
+# Create the confusion matrix
+confusion_matrix <- confusionMatrix(data = glmnet_model.preds, reference = validate$fracture)
+
+# Print the confusion matrix
+print(confusion_matrix)
+vif(glmnet_model) 
+
+#LogLoss
+library(Metrics)
+predictions <- predict(glmnet_model, newdata = validate, type = "response")
+log_loss <- logLoss(validate$fracture.num, predictions)
+log_loss
+
+#AUC
+roc_obj <- roc(validate$fracture.num, predictions)
+auc_value <- auc(validate$fracture.num, predictions)
+print(auc_value)
+```
+
+The results from the feature selection did not make a big improvement on the result that we got from the custom model that we had earlier. However, we noticed that the sensitivity and the specificity are off. This is expected from our EDA. We will conduct the ROC curve plot to get the best threshold to improve the result. 
+
+
+#ANOVA Test
+```{r anova test}
+anova(full_model,custom_model,step_model, glmnet_model, test='LR')
+
+anova(glmnet_model,custom_model, test='LR')
+
+```
+
++ If we compare the custom model and the full model, the Anova test also prefer the custom model (p-value = 0.03693).
+
++ But if we compare the custom model and the glmnet model, the custom model is not a better fit (p-value = 0.279)
+
+#Lack of fit test 
+```{r}
+library(ResourceSelection)
+#Hosmer Lemeshow Test
+hoslem.test(full_model$y,fitted(full_model),g=10)
+hoslem.test(custom_model$y,fitted(custom_model),g=10)
+hoslem.test(step_model$y,fitted(step_model),g=10)
+hoslem.test(glmnet_model$y,fitted(glmnet_model),g=10)
+```
+
+Again, the custom model with our chosen predictors is a good fit. 
+
+
+```{r ROC curves}
+
+#Predicting probabilities on the training data
+#Fullmodel
+full_model.predprobs<-predict(full_model,validate,type="response")  #note if we were using a caret model type="raw"
+full_model.roc<-roc(response=validate$fracture,predictor=full_model.predprobs,levels=c("Yes","No"))
+
+#Custom model 
+custom_model.predprobs<-predict(custom_model,validate,type="response")  #note if we were using a caret model type="raw"
+custom_model.roc<-roc(response=validate$fracture,predictor=custom_model.predprobs,levels=c("Yes","No"))
+
+#Stepwise model 
+step_model.predprobs<-predict(step_model,validate,type="response")  #note if we were using a caret model type="raw"
+step_model.roc<-roc(response=validate$fracture,predictor=step_model.predprobs,levels=c("Yes","No"))
+
+#Glmnet model 
+glmnet_model.predprobs<-predict(glmnet_model,validate,type="response")  #note if we were using a caret model type="raw"
+glmnet_model.roc<-roc(response=validate$fracture,predictor=glmnet_model.predprobs,levels=c("Yes","No"))
+
+
+# ROC curves
+#plot(full_model.roc)
+plot(custom_model.roc, print.thres = "best")
+#plot(step_model.roc,add=T,col="darkgreen")
+#plot(glmnet_model.roc,add=T,col="lightblue")
+#legend("bottomright",
+       #legend=c("full model","custom model" ,"stepwise","GLMNET"),
+       #col=c("black","pink", "darkgreen", "lightblue"),
+       #lwd=4, cex =1, xpd = TRUE, horiz = FALSE)
+
+```
+Based on the ROC curves, all of our models at this point are very similar in their AUC. We decided that the best threshold is 0.3. We will also move forward with adding more complexity to the model to improve the result. 
+
+
+
+```{r Custom Model with new threshold}
+
+#Fit the logistic regression model 
+custom_model <- glm(fracture ~ age + height  + priorfrac + momfrac + raterisk +armassist +bonetreat, data = train, family = "binomial")
+summary(custom_model)
+
+
+# Assuming you have already fitted the logistic regression model and obtained predictions
+# Compute predicted probabilities on the validation data (if not already done)
+predictions <- predict(custom_model, newdata = validate, type = "response")
+
+# Define a threshold for classification (typically 0.5, but you can adjust it)
+threshold <- 0.3
+
+# Create a binary vector of predicted classes based on the threshold
+custom_model.preds<- factor(ifelse(predictions > threshold, "Yes", "No"))
+
+# Create the confusion matrix
+confusion_matrix <- confusionMatrix(data = custom_model.preds, reference = validate$fracture)
+
+# Print the confusion matrix
+print(confusion_matrix)
+vif_values <- vif(custom_model)
+print(vif_values)
+
+#LogLoss
+library(Metrics)
+predictions <- predict(custom_model, newdata = validate, type = "response")
+log_loss <- logLoss(validate$fracture.num, predictions)
+log_loss
+
+#AUC
+roc_obj <- roc(validate$fracture.num, predictions)
+auc_value <- auc(validate$fracture.num, predictions)
+print(auc_value)
+```
+
+
+
+#Effect Plots 
+```{r effect plot of the }
+library(jtools)
+library(sjPlot)
+library(ResourceSelection)
+#jtools
+effect_plot(full_model, pred = age, interval = TRUE, plot.points = TRUE, 
+            jitter = 0.05)
+# Visualize predicted probabilities using sjPlot
+plot_model(full_model, type = "pred", terms = "age")
+
+```
+
+#LDA an QDA models 
+```{r LDA}
+library(caret)
+
+fitControl <- trainControl(
+  method = "repeatedcv",
+  number = 5,
+  repeats = 1,
+  classProbs = TRUE,
+  summaryFunction = mnLogLoss
+)
+
+set.seed(1234)
+# LDA model
+lda.fit <- train( fracture~  age + height  + priorfrac + momfrac + raterisk +armassist + bonemed + bonemed_fu,  
+  data = train,
+  method = "lda",
+  trControl = fitControl,
+  metric = "logLoss"
+)
+
+# Computing predicted probabilities on the training data
+predictions <- predict(lda.fit, validate, type = "prob")[, "Yes"]
+
+# Getting confusion matrix
+threshold <- 0.5
+lda.preds <- factor(ifelse(predictions > threshold, "Yes", "No"))
+confusionMatrix(data = lda.preds, reference = validate$fracture, positive = "Yes")
+
+```
+
+
++ Noticed that the best accuracy is the one with only age and the fracscore 
+
+
+```{r QDA}
+library(caret)
+set.seed(1234)
+# qDA model
+qda.fit <- train( fracture~  age + height  + priorfrac + momfrac + raterisk +armassist + bonemed + bonemed_fu,  
+  data = train,
+  method = "qda",
+  trControl = fitControl,
+  metric = "logLoss"
+)
+
+# Computing predicted probabilities on the training data
+predictions <- predict(qda.fit, validate, type = "prob")[, "Yes"]
+
+# Getting confusion matrix
+threshold <- 0.5
+qda.preds <- factor(ifelse(predictions > threshold, "Yes", "No"))
+confusionMatrix(data = qda.preds, reference = validate$fracture, positive = "Yes")
+
+```
+
+#Non parametric models
+```{r KNN models }
+library(caret)
+set.seed(1234)
+# Knn model
+knn.fit <- train( fracture~  age + height  + priorfrac + momfrac + raterisk +armassist + bonemed + bonemed_fu,  
+  data = train,
+  method = "knn",
+  trControl = fitControl,
+  metric = "logLoss"
+)
+
+# Computing predicted probabilities on the training data
+predictions <- predict(knn.fit, validate, type = "prob")[, "Yes"]
+
+# Getting confusion matrix
+threshold <- 0.5
+knn.preds <- factor(ifelse(predictions > threshold, "Yes", "No"))
+confusionMatrix(data = knn.preds, reference = validate$fracture, positive = "Yes")
+
+```
+
+#Interaction EDA
+```{r loess curve plots with age}
+
+#Age by smoke 
+ggplot(mydata,aes(x=age,y= fracture.num,colour=smoke))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+#Age by premeno 
+ggplot(mydata,aes(x=age,y= fracture.num,colour=premeno))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#Age by raterisk 
+ggplot(mydata,aes(x=age,y= fracture.num,colour=factor(raterisk)))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#Age by armassist 
+ggplot(mydata,aes(x=age,y= fracture.num,colour=armassist))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#Age by priorfrac
+ggplot(mydata,aes(x=age,y= fracture.num,colour=priorfrac))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#Age by momfrac 
+ggplot(mydata,aes(x=age,y= fracture.num,colour= momfrac))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#Age by bonemed
+ggplot(mydata,aes(x=age,y= fracture.num,colour=bonemed))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+#Age by bonemed_fu
+ggplot(mydata,aes(x=age,y= fracture.num,colour=bonemed_fu))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+#Age by bonetreat
+ggplot(mydata,aes(x=age,y= fracture.num,colour=bonetreat))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+```
+
+```{r loess curve plots with height}
+#height by premeno 
+ggplot(mydata,aes(x=weight,y= fracture.num,colour=premeno))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#height by raterisk 
+ggplot(mydata,aes(x=weight,y= fracture.num,colour=factor(raterisk)))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#height by armassist 
+ggplot(mydata,aes(x=weight,y= fracture.num,colour=armassist))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#height by priorfrac
+ggplot(mydata,aes(x=weight,y= fracture.num,colour=priorfrac))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#Age by momfrac 
+ggplot(mydata,aes(x=weight,y= fracture.num,colour= momfrac))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+
+#height by bonemed
+ggplot(mydata,aes(x=weight,y= fracture.num,colour=bonemed))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+#height by bonemed_fu
+ggplot(mydata,aes(x=weight,y= fracture.num,colour=bonemed_fu))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+
+#height by bonetreat
+```
+
+
+```{rloess curve plots with weight}
+ggplot(mydata,aes(x=weight,y= fracture.num,colour=bonetreat))+geom_point()+
+  geom_smooth(method="loess",size=1,span=.75)+
+  ylim(-.2,1.2)
+```
+
+
+#Objective 2 
+```{r}
+#Fit the logistic regression model 
+complex  <- glm(fracture ~ age + height  + premeno +smoke + priorfrac + momfrac + raterisk +armassist + bonemed + bonemed_fu + age*height + age*raterisk + age*priorfrac + age*momfrac + height*armassist, data = train, family = "binomial")
+summary(complex)
+
+
+# Assuming you have already fitted the logistic regression model and obtained predictions
+# Compute predicted probabilities on the validation data (if not already done)
+predictions <- predict(complex, newdata = validate, type = "response")
+
+# Define a threshold for classification (typically 0.5, but you can adjust it)
+threshold <- 0.5
+
+# Create a binary vector of predicted classes based on the threshold
+complex.preds<- factor(ifelse(predictions > threshold, "Yes", "No"))
+
+# Create the confusion matrix
+confusion_matrix <- confusionMatrix(data = complex.preds, reference = validate$fracture)
+
+# Print the confusion matrix
+print(confusion_matrix)
+log_loss <- logLoss(validate$fracture.num, predictions)
+log_loss
+
+roc_obj <- roc(validate$fracture.num, predictions)
+auc_value <- auc(validate$fracture.num, predictions)
+print(auc_value)
+```
+
